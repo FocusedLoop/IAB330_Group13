@@ -1,11 +1,12 @@
 import time
-from datetime import datetime
+import datetime
 import board
 import busio
 import adafruit_adxl34x
 from pymongo import MongoClient, errors
 from gpiozero import LED, Button
 import logging
+import threading
 
 # Setup logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -24,8 +25,8 @@ sensor = adafruit_adxl34x.ADXL343(i2c)
 # Start MongoDB connection
 try:
     client = MongoClient(MONGO_URI)
-    db = client["HAR_db"]
-    data_collection = db["acce_data"]
+    db = client["IAB330_Group13"]
+    data_collection = db["movement_data"]
     logging.info("Connected to MongoDB successfully.")
 except errors.ConnectionError as e:
     logging.error(f"Failed to connect to MongoDB: {e}")
@@ -53,8 +54,18 @@ def collect_data():
     
     return measurements, start_time
 
+# Validate accelerometer data
+def validate_data(data):
+    if not data.get('x_values') or not data.get('y_values') or not data.get('z_values'):
+        logging.error("Error: Missing data fields!")
+        return False
+    return True
+
 # Upload accelerometer data
 def upload_data(measurements, start_time):
+    if validate_data(measurements) == False:
+        return
+    
     if measurements is None:
         logging.warning("No data to upload due to previous errors.")
         return
@@ -64,9 +75,8 @@ def upload_data(measurements, start_time):
         "x_values": measurements["x_values"],
         "y_values": measurements["y_values"],
         "z_values": measurements["z_values"],
-        "User": user,
         "Movement_label": movementID,
-        "Session_ID": sessionID,
+        "Session_ID": user + "_" + sessionID,
     }
     
     try:
@@ -80,6 +90,7 @@ def upload_data(measurements, start_time):
 def handle_button_press():
     global state
     if state == "INACTIVE":
+        time.sleep(0.01)
         state = "ACTIVE"
         led.on()
         logging.info("Transitioned to ACTIVE state.")
@@ -87,6 +98,63 @@ def handle_button_press():
         state = "INACTIVE"
         led.off()
         logging.info("Transitioned to INACTIVE state.")
+
+# Flash LED
+def flash_led():
+    for _ in range(10):
+        time.sleep(0.5)
+        led.on()
+        time.sleep(0.5)
+        led.off()
+
+# Monitor accelerometer and MongoDB connection
+last_reading = None
+consecutive_unresponsive = 0
+consecutive_readings = 0
+unresponsive_threshold = 10
+reading_threshold = 10
+
+def monitor_system():
+    global last_reading, consecutive_unresponsive, consecutive_readings
+    
+    while True:
+        try:
+            # Check for MongoDB connection
+            try:
+                client.server_info()
+            except errors.ConnectionError as e:
+                logging.error("Disconnected from MongoDB: ConnectionError")
+                flash_led()
+                continue
+
+            # Check for accelerometer data
+            current_reading = sensor.acceleration  # Replace with actual data collection logic
+            
+            if current_reading == last_reading:
+                consecutive_unresponsive += 1
+                consecutive_readings += 1
+            else:
+                consecutive_unresponsive = 0
+                consecutive_readings = 0
+            
+            # Check for unresponsive accelerometer
+            if consecutive_unresponsive >= unresponsive_threshold:
+                logging.error("Error: Accelerometer is unresponsive")
+                led.off()
+                continue
+
+            # Check for repeated accelerometer data
+            if consecutive_readings >= reading_threshold:
+                logging.error(f"Repeated data values detected at {time.time()}")
+                led.off()
+                break
+
+            last_reading = current_reading
+        
+        except Exception as e:
+            logging.error(f"Error reading accelerometer: {e}")
+            led.off()
+        time.sleep(1)
 
 # Setup session
 user = input("Who is starting the current session?\n")
@@ -99,25 +167,30 @@ logging.info("Commencing Component Validation\n")
 if input("Skip validation(Y or N)").upper() == "N":
     logging.info("LED TESTING")
     for i in range(3):
-        time.sleep(0.5)
-        led.on()
-        time.sleep(0.5)
-        led.off()
+        flash_led()
 
     logging.info("SENSOR TESTING")
+    time.sleep(0.5)
+    print("Begin moving device")
     for i in range(6):
-        movment, timestamp = collect_data()
-        print("")
+        measurements, timestamp = collect_data()
+        print("Position:",
+              "\ntimestamp: {timestamp}",
+              "\nx_values: {measurements['x_values']}",
+              "\ny_values: {measurements['y_values']}",
+              "\nz_values: {measurements['z_values']}",
+              )
         time.sleep(0.5)
 
-
-    print("Please begin ")
+    logging.info("VALIDATION COMPLETE")
 
 # Initialize button
 button.when_pressed = handle_button_press
 
 # Main loop: on button press, light LED and send accelerometer data to MongoDB
 try:
+    monitor_thread = threading.Thread(target=monitor_system, daemon=True)
+    monitor_thread.start()
     while True:
         if state == "ACTIVE":
             start_time = time.time()

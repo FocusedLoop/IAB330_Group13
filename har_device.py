@@ -105,8 +105,10 @@ if input("Skip validation(Y or N)").upper() == "N":
         led.off()
 
     logging.info("SENSOR TESTING")
-    for 
-    collect_data()
+    for i in range(6):
+        movment, timestamp = collect_data()
+        print("")
+        time.sleep(0.5)
 
 
     print("Please begin ")

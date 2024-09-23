@@ -21,20 +21,6 @@ button = Button(BUTTON_PIN)
 i2c = busio.I2C(board.SCL, board.SDA)
 sensor = adafruit_adxl34x.ADXL343(i2c)
 
-# Component Validation
-logging.info("Commencing Component Validation\n")
-
-if input("Skip validation(Y or N)").upper() == "N":
-    logging.info("LED TESTING")
-    for i in range(3):
-        time.sleep(0.5)
-        led.on()
-        time.sleep(0.5)
-        led.off()
-    
-
-    print("Please begin ")
-
 # Start MongoDB connection
 try:
     client = MongoClient(MONGO_URI)
@@ -44,11 +30,6 @@ try:
 except errors.ConnectionError as e:
     logging.error(f"Failed to connect to MongoDB: {e}")
     exit(1)
-
-# Setup session
-user = input("Who is starting the current session?\n")
-sessionID = input("What is the current session?\n")
-movementID = input("What is the movement type being performed?\n")
 
 # MongoDB Transmission state
 state = "INACTIVE"
@@ -106,6 +87,29 @@ def handle_button_press():
         state = "INACTIVE"
         led.off()
         logging.info("Transitioned to INACTIVE state.")
+
+# Setup session
+user = input("Who is starting the current session?\n")
+sessionID = input("What is the current session?\n")
+movementID = input("What is the movement type being performed?\n")
+
+# Component Validation
+logging.info("Commencing Component Validation\n")
+
+if input("Skip validation(Y or N)").upper() == "N":
+    logging.info("LED TESTING")
+    for i in range(3):
+        time.sleep(0.5)
+        led.on()
+        time.sleep(0.5)
+        led.off()
+
+    logging.info("SENSOR TESTING")
+    for 
+    collect_data()
+
+
+    print("Please begin ")
 
 # Initialize button
 button.when_pressed = handle_button_press

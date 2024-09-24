@@ -1,4 +1,4 @@
-"python har_device.py" in the terminal to start program
+"python har_device.py" in the terminal to start the program
 <br /><br />Setup:
 <br />Input your session User - Your name
 <br />Input your session ID - Number of times you have performed a movement actvity (to differentiate between entries easily if there is an issue)

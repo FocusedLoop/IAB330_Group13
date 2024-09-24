@@ -87,7 +87,7 @@ def flash_led(amount):
 
 # Setup session
 user = input("Who is starting the current session?\n")
-sessionID = input("What is the current session number?\n")
+sessionID = input("What is the current session number (running, walking, situps or rest)?\n")
 movementID = input("What is the movement type being performed?\n")
 
 # Component Validation
